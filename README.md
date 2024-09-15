@@ -36,7 +36,7 @@ Este projeto faz parte de um desafio Full Cycle, onde o objetivo é criar uma AP
 ### API Externa Utilizada:
 
 - **API**:  https://temp-by-cep-1035948664484.us-central1.run.app/temp-by-cep?zipcode=SEU_CEP_AQUI
-- **Exemplo**:   https://temp-by-cep-1035948664484.us-central1.run.app/temp-by-cep?zipcode=29055370
+- **Exemplo**:   https://temp-by-cep-1035948664484.us-central1.run.app/temp-by-cep?zipcode=69304350
 
 #### Retorno Esperado:
 ```json
