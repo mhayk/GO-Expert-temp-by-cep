@@ -1,104 +1,266 @@
 <p align="center">
-  <img src="https://cdn-icons-png.flaticon.com/512/6218/6218295.png" width="100" />
+	<img src="https://cdn-icons-png.flaticon.com/512/6218/6218295.png" width="100" alt="Go weather API icon" />
 </p>
+
+<h1 align="center">GO Expert - Temperature by Brazilian ZIP Code (CEP)</h1>
+
 <p align="center">
-    <h1 align="center">GO-EXPERT TEMP BY CEP</h1>
+	A production-oriented Go microservice that validates Brazilian CEP input, orchestrates
+	multiple external integrations (ViaCEP and WeatherAPI), and exposes a clear HTTP contract
+	for temperature conversion in Celsius, Fahrenheit, and Kelvin.
 </p>
+
 <p align="center">
-    <em>Desafio da pós em GO Expert</em>
+	<img src="https://img.shields.io/github/last-commit/mhayk/GO-Expert-temp-by-cep?style=flat&logo=git&logoColor=white&color=0080ff" alt="last-commit">
+	<img src="https://img.shields.io/github/languages/top/mhayk/GO-Expert-temp-by-cep?style=flat&color=0080ff" alt="repo-top-language">
+	<img src="https://img.shields.io/github/languages/count/mhayk/GO-Expert-temp-by-cep?style=flat&color=0080ff" alt="repo-language-count">
+	<img src="https://img.shields.io/badge/Go-1.22+-00ADD8.svg?style=flat&logo=Go&logoColor=white" alt="Go">
+	<img src="https://img.shields.io/badge/Docker-Enabled-2496ED.svg?style=flat&logo=Docker&logoColor=white" alt="Docker">
 </p>
-<p align="center">
-	<img src="https://img.shields.io/github/last-commit/mhayk/GO-Expert-rate-limiter?style=flat&logo=git&logoColor=white&color=0080ff" alt="last-commit">
-	<img src="https://img.shields.io/github/languages/top/mhayk/GO-Expert-rate-limiter?style=flat&color=0080ff" alt="repo-top-language">
-	<img src="https://img.shields.io/github/languages/count/mhayk/GO-Expert-rate-limiter?style=flat&color=0080ff" alt="repo-language-count">
-<p>
-<p align="center">
-    <em>Developed with ❤️ by Mhayk Whandson</em>
-</p>
-<p align="center">
-		<em>Developed with the language, software and tools below.</em>
-</p>
-<p align="center">
-	<img src="https://img.shields.io/badge/YAML-CB171E.svg?style=flat&logo=YAML&logoColor=white" alt="YAML">
-	<img src="https://img.shields.io/badge/V8-4B8BF5.svg?style=flat&logo=V8&logoColor=white" alt="V8">
-	<img src="https://img.shields.io/badge/Docker-2496ED.svg?style=flat&logo=Docker&logoColor=white" alt="Docker">
-	<img src="https://img.shields.io/badge/Go-00ADD8.svg?style=flat&logo=Go&logoColor=white" alt="Go">
-</p>
-<hr>
 
+---
 
-# Lab GO: Sistema de Temperatura por CEP
+## Engineering Highlights
 
-## Descrição do Desafio
+This service was designed to demonstrate core backend concerns beyond basic CRUD:
 
-Este projeto faz parte de um desafio Full Cycle, onde o objetivo é criar uma API capaz de calcular a temperatura com base no CEP informado.
+- Contract-first HTTP behaviour with deterministic status codes (`200`, `422`, `404`, `500`).
+- Layered design separating transport logic from external provider integrations.
+- Input validation and explicit failure-path handling.
+- Integration testing with upstream HTTP mocking to ensure repeatability.
+- Container-ready workflows for local development and production packaging.
 
-### API Externa Utilizada:
+For technical evaluation, this project evidences competency in API design, boundary management, external dependency integration, and service reliability in Go.
 
-- **API**:  https://temp-by-cep-1035948664484.us-central1.run.app/temp-by-cep?zipcode=SEU_CEP_AQUI
-- **Exemplo**:   https://temp-by-cep-1035948664484.us-central1.run.app/temp-by-cep?zipcode=69304350
+## Execution Flow
 
-#### Retorno Esperado:
+Given a `zipcode`, the request pipeline is:
+
+1. Validate CEP format using `brdoc`.
+2. Resolve location metadata via ViaCEP.
+3. Extract city and request current weather from WeatherAPI.
+4. Compute Kelvin from Celsius and serialise response JSON.
+
+Returned fields:
+
+- `temp_C`
+- `temp_F`
+- `temp_K`
+
+## Architecture
+
+```text
+main.go
+	-> api/handler/weather.go
+			-> integration/address/address.go   (ViaCEP)
+			-> integration/weather/weather.go   (WeatherAPI)
+```
+
+High-level structure:
+
+```text
+.
+|- api/handler/weather.go
+|- integration/address/address.go
+|- integration/weather/weather.go
+|- test/integration/weather_test.go
+|- main.go
+|- docker-compose.yml
+|- Dockerfile.dev
+|- Dockerfile.prod
+```
+
+## API Endpoint
+
+### Request
+
+`GET /temp-by-cep?zipcode={CEP}`
+
+Example:
+
+```bash
+curl "http://localhost:8080/temp-by-cep?zipcode=69304350"
+```
+
+### Success Response (`200`)
+
 ```json
 {
-    "temp_C": 28.7,
-    "temp_F": 83.6,
-    "temp_K": 301.7
+	"temp_C": 20,
+	"temp_F": 68,
+	"temp_K": 293
 }
 ```
 
-### Como Rodar em Ambiente de Desenvolvimento
-Siga os passos abaixo para configurar e rodar o projeto em sua máquina local:
+### Error Responses
 
-1. Clone o Projeto
-Baixe o repositório para a sua máquina:
+- `422 Unprocessable Entity`: `invalid zipcode`
+- `404 Not Found`: `can not find zipcode`
+- `500 Internal Server Error`: upstream/integration failure
+
+## Design Decisions
+
+- Standard library HTTP stack (`net/http`) to keep runtime and dependency surface minimal.
+- `http.NewServeMux` for clear and explicit routing.
+- Dedicated integration packages (`integration/address`, `integration/weather`) to isolate provider concerns.
+- Environment-driven configuration (`WEATHER_API_KEY`, `ENVIRONMENT`) to support multiple runtime contexts.
+
+## Trade-offs and Rationale
+
+- Simplicity over framework abstraction:
+	Using the Go standard library keeps startup time, dependency count, and maintenance overhead low.
+- Fast delivery over advanced resiliency primitives:
+	The current version prioritises clarity and correctness; retries, circuit breaking, and timeout policies are planned improvements.
+- Readability over premature optimisation:
+	The request pipeline is intentionally explicit to make behaviour easy to reason about and review.
+- Strong API contract over silent fallback behaviour:
+	Distinct status codes and clear error messages make failure modes predictable for API consumers.
+
+## Testing Strategy
+
+The suite under `test/integration` validates both happy path and failure paths at HTTP boundary level:
+
+- Success scenario with complete CEP -> city -> weather chain.
+- Invalid CEP input validation.
+- Unknown CEP lookup behaviour.
+- Weather provider failure propagation.
+
+External calls are mocked with `gock`, ensuring deterministic and fast feedback loops during CI and local runs.
+
+## Running Locally
+
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/mhayk/GO-Expert-temp-by-cep
 cd GO-Expert-temp-by-cep
 ```
-2. Instale as Dependências
-Certifique-se de ter o Go instalado, e execute o comando:
+
+### 2. Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+Set your WeatherAPI key in `.env`:
+
+```env
+WEATHER_API_KEY=your_weather_api_key
+PORT=8080
+ENVIRONMENT=development
+```
+
+### 3. Install dependencies
 
 ```bash
 go mod tidy
 ```
 
-3. Crie uma Conta na WeatherAPI
-Acesse WeatherAPI e crie uma conta. Esta API será utilizada para consultar informações de temperatura.
-
-4. Configure as Variáveis de Ambiente
-Faça uma cópia do arquivo .env.example e renomeie para .env:
-```bash
-cp .env.example .env
-```
-Dentro do arquivo .env, adicione sua chave da WeatherAPI na variável WEATHER_API_KEY:
-```text
-WEATHER_API_KEY=YOUR_API_KEY
-```
-5. Rodar com Docker Compose
-Execute o comando abaixo para levantar os serviços com Docker Compose:
+### 4. Run with Go
 
 ```bash
-docker compose up
-```
-6. Acessar o Container e Rodar a Aplicação
-Acesse o container e inicie a aplicação com o comando:
-
-```bash
-docker exec -it <nome_do_container> /bin/sh
 go run main.go
 ```
 
-7. Executar os Testes
-Para rodar os testes do projeto, utilize o comando:
+The API will be available at `http://localhost:8080`.
 
-``` bash
+## Local Verification
+
+Smoke test:
+
+```bash
+curl -i "http://localhost:8080/temp-by-cep?zipcode=69304350"
+```
+
+## Running with Docker (Development)
+
+```bash
+docker compose up -d
+docker compose exec goapp sh
+go run main.go
+```
+
+## Tests
+
+Run all tests:
+
+```bash
 go test ./...
 ```
 
-### Tecnologias Utilizadas
-* Go
-* Docker
-* WeatherAPI
-* Google Cloud Run
+The integration tests cover:
+
+- valid CEP -> correct temperature conversion response
+- invalid CEP -> `422`
+- non-existent CEP -> `404`
+- external weather provider failure -> `500`
+
+## Production Build
+
+The repository includes a multi-stage production image in `Dockerfile.prod`.
+
+Build and run:
+
+```bash
+docker build -f Dockerfile.prod -t temp-by-cep:prod .
+docker run --rm -p 8080:8080 --env WEATHER_API_KEY=your_weather_api_key temp-by-cep:prod
+```
+
+## Operational Notes
+
+- In non-production mode, `.env` is loaded automatically.
+- In production mode, environment variables must be injected externally.
+- The server listens on port `8080`.
+
+## Scalability and Reliability Approach
+
+- Horizontal scale:
+	The service is stateless and suitable for scale-out behind a load balancer.
+- Throughput model:
+	Runtime bottlenecks are primarily external I/O (ViaCEP/WeatherAPI), not CPU.
+- Production hardening roadmap:
+	Add per-request context timeouts, bounded retries with jitter, and circuit breaker behaviour.
+- Resilience posture:
+	Keep upstream concerns isolated in integration packages so resiliency policies can be added without affecting handlers.
+
+## Incident Handling Model
+
+- Detection:
+	Monitor request error rates, latency percentiles, and upstream provider failure spikes.
+- Triage:
+	Classify incidents by category (input validation, ViaCEP dependency, WeatherAPI dependency, platform/runtime).
+- Mitigation:
+	Degrade gracefully for upstream failures with explicit `500` responses and actionable logs.
+- Recovery:
+	Use deployment rollback and feature toggles (where available) to restore stable behaviour quickly.
+- Prevention:
+	Convert incident learnings into tests and guardrails (timeouts, retries, observability, alerting thresholds).
+
+## Interview Discussion Points
+
+If asked to evolve this service in a senior backend interview, I would prioritise:
+
+1. Request-scoped timeouts and transport-level tuning in HTTP clients.
+2. Structured logs with correlation IDs and request metadata.
+3. Metrics and traces (latency, dependency error rates, saturation signals).
+4. Explicit service-level objectives and alert strategy.
+5. Cache strategy for repeated CEP lookups to reduce upstream dependency pressure.
+
+## Known Improvements (Next Iteration)
+
+- Add request timeouts and retry/backoff policies for upstream calls.
+- Introduce structured logging and correlation IDs.
+- Add contract tests and benchmark tests.
+- Add observability primitives (metrics/tracing) for production diagnostics.
+
+## Tech Stack
+
+- Go
+- Docker / Docker Compose
+- ViaCEP API
+- WeatherAPI
+- Testify + Gock
+
+---
+
+Built by Mhayk Whandson as part of the GO Expert postgraduate challenge, with focus on maintainable service design, integration robustness, and production-oriented Go engineering.
